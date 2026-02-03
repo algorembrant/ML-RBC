@@ -17,6 +17,44 @@ A MATLAB application for calculating the **Nominal Moment Strength (Mn)** of sin
 
 ---
 
+## Reference Examples
+
+This application is based on **Example 4-1** (Imperial) and **Example 4-1M** (SI) from ACI 318 provisions:
+
+### Example 4-1: Imperial Units (psi, in)
+
+<details>
+<summary>Click to expand Example 4-1 images</summary>
+
+
+![Example 4-1 Part 1](Example4-1/example4-1_part1.png)
+
+
+![Example 4-1 Part 2](Example4-1/example4-1_part2.png)
+
+![Example 4-1 Part 3](Example4-1/example4-1_part3.png)
+
+![Example 4-1 Part 4](Example4-1/example4-1_part4.png)
+
+![Example 4-1 Part 5](Example4-1/example4-1_part5.png)
+
+</details>
+
+### Example 4-1M: SI Units (MPa, mm)
+
+<details>
+<summary>Click to expand Example 4-1M images</summary>
+
+![Example 4-1 Part 6](Example4-1/example4-1_part6.png)
+
+![Example 4-1 Part 7](Example4-1/example4-1_part7.png)
+
+![Example 4-1 Part 8](Example4-1/example4-1_part8.png)
+
+</details>
+
+---
+
 ## Quick Start
 
 ### Requirements
