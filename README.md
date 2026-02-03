@@ -6,6 +6,7 @@ A MATLAB application for calculating the **Nominal Moment Strength (Mn)** of sin
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ---
+<img width="1361" height="677" alt="image" src="https://github.com/user-attachments/assets/8645b468-b3a2-423a-bf1d-a03852dca0e9" />
 
 ## Features
 
