@@ -1,1 +1,0 @@
-Make a MATLAB code that shows all equations regarding to this (as shown in images), 'all' variiables are adjusttable, and it should also show graphs/illustrations related of the beam.Based on as what shown on the images. You may review the images from @Example4-1 folder's 'example4-1_part1.png' to 'example4-1_part8.png'
