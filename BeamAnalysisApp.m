@@ -24,9 +24,13 @@ classdef BeamAnalysisApp < matlab.apps.AppBase
 
     properties (Access = public)
         UIFigure      matlab.ui.Figure
-        GridLayout    matlab.ui.container.GridLayout
-        LeftPanel     matlab.ui.container.Panel
-        RightPanel    matlab.ui.container.Panel
+        MainGrid      matlab.ui.container.GridLayout
+        
+        % Panels
+        InputPanel    matlab.ui.container.Panel
+        DiagramPanel  matlab.ui.container.Panel
+        ResultsPanel  matlab.ui.container.Panel
+        EquationsPanel matlab.ui.container.Panel
         
         % Inputs - Material
         UnitSwitch    matlab.ui.control.Switch
@@ -49,14 +53,16 @@ classdef BeamAnalysisApp < matlab.apps.AppBase
         AxSection     matlab.ui.control.UIAxes
         AxStrain      matlab.ui.control.UIAxes
         AxStress      matlab.ui.control.UIAxes
-        AxEquations   matlab.ui.control.UIAxes  % For LaTeX rendering
+        AxEquations   matlab.ui.control.UIAxes
         
-        % Results Panel
-        ResultLabel   matlab.ui.control.Label
+        % Results
+        ResultsText   matlab.ui.control.TextArea
     end
 
     properties (Access = private)
         Units struct
+        % Color scheme
+        Colors struct
     end
 
     methods (Access = private)
@@ -79,30 +85,21 @@ classdef BeamAnalysisApp < matlab.apps.AppBase
 
             % Set units
             if is_imperial
-                app.Units = struct('len', 'in', 'area', 'in^2', 'force', 'lb', ...
+                app.Units = struct('len', 'in', 'area', 'in2', 'force', 'lb', ...
                     'stress', 'psi', 'moment', 'lb-in', 'moment_k', 'k-in', 'moment_alt', 'k-ft');
             else
-                app.Units = struct('len', 'mm', 'area', 'mm^2', 'force', 'N', ...
+                app.Units = struct('len', 'mm', 'area', 'mm2', 'force', 'N', ...
                     'stress', 'MPa', 'moment', 'N-mm', 'moment_k', 'N-mm', 'moment_alt', 'kN-m');
             end
             u = app.Units;
+            clr = app.Colors;
 
-            % === 2. CALCULATIONS (Following Example 4-1 Steps) ===
-            
-            % STEP 1: Compute Steel Tension Force T
-            % Assumption: Steel yields (fs = fy)
+            % === 2. CALCULATIONS ===
             T = As * fy;
-            
-            % STEP 2: Compute depth of equivalent stress block (a)
-            % From equilibrium: C = T  =>  0.85 * fc' * b * a = As * fy
             a = (As * fy) / (0.85 * fc * b);
-            
-            % Neutral axis depth c = a / beta1
             c = a / beta1;
-            
-            % STEP 3: Check if tension steel is yielding
-            epsilon_y = fy / Es;  % Yield strain
-            epsilon_s = epsilon_cu * (d - c) / c;  % Strain compatibility (Eq. 4-18)
+            epsilon_y = fy / Es;
+            epsilon_s = epsilon_cu * (d - c) / c;
             
             if epsilon_s >= epsilon_y
                 yield_check = true;
@@ -112,21 +109,18 @@ classdef BeamAnalysisApp < matlab.apps.AppBase
                 fs = epsilon_s * Es;
             end
             
-            % STEP 4: Compute Nominal Moment Strength Mn (Eq. 4-21)
             Mn = As * fs * (d - a/2);
             
-            % Convert Mn for display
             if is_imperial
-                Mn_disp = Mn / 12000; % k-ft
-                T_disp = T / 1000;    % kips
-                Mn_k = Mn / 1000;     % k-in
+                Mn_disp = Mn / 12000;
+                T_disp = T / 1000;
+                Mn_k = Mn / 1000;
             else
-                Mn_disp = Mn / 1e6;   % kN-m
-                T_disp = T / 1000;    % kN
-                Mn_k = Mn;            % N-mm
+                Mn_disp = Mn / 1e6;
+                T_disp = T / 1000;
+                Mn_k = Mn;
             end
 
-            % STEP 5: Check Minimum Steel Area As,min (Eq. 4-11)
             if is_imperial
                 term1 = (3 * sqrt(fc) / fy) * b * d;
                 term2 = (200 / fy) * b * d;
@@ -137,213 +131,241 @@ classdef BeamAnalysisApp < matlab.apps.AppBase
             As_min = max(term1, term2);
             As_check = As >= As_min;
             
-            % === 3. VISUALIZATION ===
-            
-            % --- Section Plot ---
+            % === 3. CROSS SECTION DIAGRAM ===
             ax = app.AxSection;
-            cla(ax); hold(ax, 'on'); 
-            axis(ax, 'equal');
-            title(ax, 'Cross Section', 'FontWeight', 'bold');
+            cla(ax); hold(ax, 'on');
             
-            % Concrete outline
-            rectangle(ax, 'Position', [0, 0, b, h], 'FaceColor', [0.85 0.85 0.85], 'EdgeColor', 'k', 'LineWidth', 1.5);
+            % Concrete beam
+            rectangle(ax, 'Position', [0, 0, b, h], ...
+                'FaceColor', clr.concrete, 'EdgeColor', clr.outline, 'LineWidth', 1.5);
             
-            % Compression zone shading
-            fill(ax, [0, b, b, 0], [h, h, h-a, h-a], [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.5);
+            % Compression zone
+            patch(ax, [0, b, b, 0], [h, h, h-a, h-a], clr.compression, ...
+                'EdgeColor', 'none', 'FaceAlpha', 0.6);
+            
+            % Neutral axis line
+            plot(ax, [0, b], [h-c, h-c], '--', 'Color', clr.neutral, 'LineWidth', 1.2);
             
             % Steel bars
-            bar_r = sqrt(bar_A/pi) * 0.8;
+            bar_r = sqrt(bar_A/pi) * 0.7;
             steel_y = h - d;
             if n_bars == 1
                 cx = b/2;
             else
-                cx = linspace(b*0.15, b*0.85, n_bars);
+                cx = linspace(b*0.12, b*0.88, n_bars);
             end
-            for i=1:n_bars
+            for i = 1:n_bars
                 rectangle(ax, 'Position', [cx(i)-bar_r, steel_y-bar_r, 2*bar_r, 2*bar_r], ...
-                    'FaceColor', [0.2 0.2 0.2], 'EdgeColor', 'k', 'Curvature', [1 1]);
+                    'FaceColor', clr.steel, 'EdgeColor', [0.1 0.1 0.1], 'Curvature', [1 1], 'LineWidth', 0.5);
             end
             
-            % Dimension lines and labels
-            % h (total depth)
-            plot(ax, [b+b*0.1, b+b*0.1], [0, h], 'k-', 'LineWidth', 1);
-            plot(ax, [b, b+b*0.15], [0, 0], 'k-');
-            plot(ax, [b, b+b*0.15], [h, h], 'k-');
-            text(ax, b+b*0.15, h/2, sprintf('h = %.1f %s', h, u.len), 'FontSize', 9);
+            % Dimension: h
+            xh = b + b*0.08;
+            plot(ax, [xh, xh], [0, h], 'k-', 'LineWidth', 0.8);
+            plot(ax, [b, xh+b*0.02], [0, 0], 'k-', 'LineWidth', 0.8);
+            plot(ax, [b, xh+b*0.02], [h, h], 'k-', 'LineWidth', 0.8);
+            text(ax, xh+b*0.04, h/2, sprintf('h=%.1f', h), 'FontSize', 9, 'FontName', 'Arial');
             
-            % d (effective depth)
-            plot(ax, [b+b*0.3, b+b*0.3], [steel_y, h], 'b-', 'LineWidth', 1);
-            text(ax, b+b*0.35, (h+steel_y)/2, sprintf('d = %.1f %s', d, u.len), 'Color', 'b', 'FontSize', 9);
+            % Dimension: d
+            xd = b + b*0.22;
+            plot(ax, [xd, xd], [steel_y, h], 'Color', clr.dimension, 'LineWidth', 0.8);
+            text(ax, xd+b*0.04, (h+steel_y)/2, sprintf('d=%.1f', d), 'FontSize', 9, 'Color', clr.dimension, 'FontName', 'Arial');
             
-            % a (stress block)
-            plot(ax, [-b*0.1, -b*0.1], [h-a, h], 'r-', 'LineWidth', 2);
-            text(ax, -b*0.4, h-a/2, sprintf('a = %.2f %s', a, u.len), 'Color', 'r', 'FontSize', 9);
+            % Dimension: a
+            xa = -b*0.08;
+            plot(ax, [xa, xa], [h-a, h], 'Color', clr.compression_line, 'LineWidth', 1.5);
+            text(ax, xa-b*0.15, h-a/2, sprintf('a=%.2f', a), 'FontSize', 9, 'Color', clr.compression_line, 'FontName', 'Arial');
             
-            % c (neutral axis)
-            plot(ax, [0, b], [h-c, h-c], 'k--', 'LineWidth', 1);
-            text(ax, b*0.5, h-c+h*0.03, sprintf('c = %.2f', c), 'HorizontalAlignment', 'center', 'FontSize', 8);
+            % Dimension: b
+            text(ax, b/2, -h*0.06, sprintf('b=%.1f', b), 'HorizontalAlignment', 'center', 'FontSize', 9, 'FontName', 'Arial');
             
-            % b (width)
-            text(ax, b/2, -h*0.08, sprintf('b = %.1f %s', b, u.len), 'HorizontalAlignment', 'center', 'FontSize', 9);
+            % c label (neutral axis depth)
+            text(ax, b+b*0.04, h-c, sprintf('c=%.2f', c), 'FontSize', 8, 'Color', clr.neutral, 'FontName', 'Arial');
             
-            ax.XLim = [-b*0.5, b*1.6];
-            ax.YLim = [-h*0.15, h*1.1];
+            axis(ax, 'equal');
+            ax.XLim = [-b*0.25, b*1.4];
+            ax.YLim = [-h*0.12, h*1.08];
             ax.XTick = []; ax.YTick = [];
-            box(ax, 'off');
+            ax.XColor = 'none'; ax.YColor = 'none';
+            title(ax, 'Cross Section', 'FontWeight', 'bold', 'FontSize', 11, 'FontName', 'Arial');
             
-            % --- Strain Diagram ---
+            % === 4. STRAIN DIAGRAM ===
             ax = app.AxStrain;
             cla(ax); hold(ax, 'on');
-            title(ax, 'Strain Profile', 'FontWeight', 'bold');
             
-            % Scale factor for visualization
-            x_scale = b * 0.4 / epsilon_cu;
+            strain_w = 0.4;
             
-            % Strain profile
-            fill(ax, [0, epsilon_cu*x_scale, epsilon_s*x_scale, 0], [h, h, steel_y, steel_y], ...
-                [0.8 0.9 1], 'EdgeColor', 'b', 'LineWidth', 1.5);
+            % Beam outline (reference)
+            plot(ax, [0, 0], [0, h], 'Color', [0.7 0.7 0.7], 'LineWidth', 1);
+            
+            % Strain profile fill
+            x_top = epsilon_cu * strain_w / 0.003;
+            x_bot = epsilon_s * strain_w / 0.003;
+            patch(ax, [0, x_top, x_bot, 0], [h, h, steel_y, steel_y], clr.strain, ...
+                'EdgeColor', clr.strain_edge, 'LineWidth', 1.2, 'FaceAlpha', 0.5);
             
             % Neutral axis
-            plot(ax, [0, 0], [0, h], 'k-', 'LineWidth', 1);
-            plot(ax, [-b*0.1, b*0.6], [h-c, h-c], 'k:', 'LineWidth', 1);
-            text(ax, -b*0.05, h-c, 'N.A.', 'FontSize', 8, 'HorizontalAlignment', 'right');
+            plot(ax, [-0.05, strain_w*1.2], [h-c, h-c], '--', 'Color', clr.neutral, 'LineWidth', 1);
+            text(ax, -0.03, h-c, sprintf('c=%.2f', c), 'FontSize', 8, 'HorizontalAlignment', 'right', 'Color', clr.neutral, 'FontName', 'Arial');
             
             % Labels
-            text(ax, epsilon_cu*x_scale, h+h*0.03, sprintf('\\epsilon_{cu} = %.4f', epsilon_cu), 'FontSize', 9, 'Color', 'b');
-            text(ax, epsilon_s*x_scale, steel_y-h*0.03, sprintf('\\epsilon_s = %.5f', epsilon_s), 'FontSize', 9, 'Color', 'b');
-            text(ax, 0, h-c/2, sprintf('c=%.2f', c), 'FontSize', 8);
+            text(ax, x_top+0.02, h, sprintf('ecu=%.4f', epsilon_cu), 'FontSize', 9, 'Color', clr.strain_edge, 'FontName', 'Arial');
+            text(ax, x_bot+0.02, steel_y, sprintf('es=%.5f', epsilon_s), 'FontSize', 9, 'Color', clr.strain_edge, 'FontName', 'Arial');
             
-            ax.XLim = [-b*0.15, b*0.8];
-            ax.YLim = [-h*0.1, h*1.15];
+            ax.XLim = [-0.1, strain_w*1.5];
+            ax.YLim = [-h*0.12, h*1.08];
             ax.XTick = []; ax.YTick = [];
-            box(ax, 'off');
+            ax.XColor = 'none'; ax.YColor = 'none';
+            title(ax, 'Strain Distribution', 'FontWeight', 'bold', 'FontSize', 11, 'FontName', 'Arial');
             
-            % --- Stress/Force Diagram ---
+            % === 5. STRESS/FORCE DIAGRAM ===
             ax = app.AxStress;
             cla(ax); hold(ax, 'on');
-            title(ax, 'Stresses & Forces', 'FontWeight', 'bold');
             
-            x_scale = b * 0.6;
+            stress_w = 0.5;
             
-            % Compression block (0.85 fc')
-            fill(ax, [0, x_scale, x_scale, 0], [h, h, h-a, h-a], [1 0.7 0.7], 'EdgeColor', 'r', 'LineWidth', 1.5);
-            text(ax, x_scale/2, h-a/2, sprintf('0.85 f''_c'), 'HorizontalAlignment', 'center', 'FontSize', 9);
+            % Compression block
+            patch(ax, [0, stress_w, stress_w, 0], [h, h, h-a, h-a], clr.compression, ...
+                'EdgeColor', clr.compression_line, 'LineWidth', 1.2, 'FaceAlpha', 0.7);
+            text(ax, stress_w/2, h-a/2, '0.85fc''', 'HorizontalAlignment', 'center', 'FontSize', 9, 'FontName', 'Arial');
             
-            % Compression force C
-            quiver(ax, x_scale*1.1, h-a/2, x_scale*0.4, 0, 0, 'r', 'LineWidth', 2, 'MaxHeadSize', 0.8);
-            text(ax, x_scale*1.6, h-a/2, sprintf('C = %.0f k', T_disp), 'Color', 'r', 'FontSize', 9);
+            % Compression force arrow
+            quiver(ax, stress_w+0.05, h-a/2, 0.2, 0, 0, 'Color', clr.compression_line, 'LineWidth', 2, 'MaxHeadSize', 0.8);
+            text(ax, stress_w+0.28, h-a/2, sprintf('C=%.0f k', T_disp), 'FontSize', 9, 'Color', clr.compression_line, 'FontName', 'Arial');
             
-            % Tension force T
-            quiver(ax, -x_scale*0.1, steel_y, x_scale*0.5, 0, 0, 'b', 'LineWidth', 2, 'MaxHeadSize', 0.8);
-            text(ax, x_scale*0.5, steel_y, sprintf('T = %.0f k', T_disp), 'Color', 'b', 'FontSize', 9);
+            % Steel location
+            plot(ax, [0, stress_w*0.3], [steel_y, steel_y], 'Color', clr.steel, 'LineWidth', 2);
             
-            % Moment arm
-            plot(ax, [x_scale*1.8, x_scale*1.8], [h-a/2, steel_y], 'g-', 'LineWidth', 1.5);
-            text(ax, x_scale*1.9, (h-a/2+steel_y)/2, sprintf('d - a/2'), 'Color', [0 0.5 0], 'FontSize', 9);
+            % Tension force arrow
+            quiver(ax, 0, steel_y, 0.25, 0, 0, 'Color', clr.tension, 'LineWidth', 2, 'MaxHeadSize', 0.8);
+            text(ax, 0.28, steel_y, sprintf('T=%.0f k', T_disp), 'FontSize', 9, 'Color', clr.tension, 'FontName', 'Arial');
             
             % Neutral axis
-            plot(ax, [-b*0.2, b*1.5], [h-c, h-c], 'k:', 'LineWidth', 1);
+            plot(ax, [-0.05, stress_w+0.3], [h-c, h-c], '--', 'Color', clr.neutral, 'LineWidth', 1);
             
-            ax.XLim = [-b*0.3, b*2.2];
-            ax.YLim = [-h*0.1, h*1.1];
+            % Moment arm
+            xa_arm = stress_w + 0.45;
+            plot(ax, [xa_arm, xa_arm], [h-a/2, steel_y], 'Color', clr.moment_arm, 'LineWidth', 1.5);
+            plot(ax, [xa_arm-0.02, xa_arm+0.02], [h-a/2, h-a/2], 'Color', clr.moment_arm, 'LineWidth', 1.5);
+            plot(ax, [xa_arm-0.02, xa_arm+0.02], [steel_y, steel_y], 'Color', clr.moment_arm, 'LineWidth', 1.5);
+            text(ax, xa_arm+0.03, (h-a/2+steel_y)/2, 'd-a/2', 'FontSize', 9, 'Color', clr.moment_arm, 'FontName', 'Arial');
+            
+            ax.XLim = [-0.1, stress_w+0.65];
+            ax.YLim = [-h*0.12, h*1.08];
             ax.XTick = []; ax.YTick = [];
-            box(ax, 'off');
+            ax.XColor = 'none'; ax.YColor = 'none';
+            title(ax, 'Stress Block & Forces', 'FontWeight', 'bold', 'FontSize', 11, 'FontName', 'Arial');
             
-            % --- Equations Panel (LaTeX in UIAxes) ---
+            % === 6. EQUATIONS PANEL ===
             ax = app.AxEquations;
             cla(ax); hold(ax, 'on');
             axis(ax, 'off');
             ax.XLim = [0 1]; ax.YLim = [0 1];
             
-            y = 0.95; dy = 0.14;
-            fs_size = 11;
+            y = 0.92; 
+            dy = 0.115;
+            fs = 10;
             
-            % Title
-            text(ax, 0.02, y, '\bf{CALCULATIONS (Example 4-1 Procedure)}', 'Interpreter', 'tex', 'FontSize', 12);
-            y = y - dy*0.8;
-            
-            % Step 1: As and T
-            eq1 = sprintf('$$A_s = n \\times A_{bar} = %.0f \\times %.2f = %.2f \\; \\mathrm{%s}$$', n_bars, bar_A, As, u.area);
-            text(ax, 0.02, y, eq1, 'Interpreter', 'latex', 'FontSize', fs_size);
+            % Header
+            text(ax, 0.01, y, 'STEP-BY-STEP CALCULATIONS', 'FontWeight', 'bold', 'FontSize', 12, 'FontName', 'Arial');
             y = y - dy*0.7;
             
-            eq2 = sprintf('$$T = A_s f_y = %.2f \\times %.0f = %.0f \\; \\mathrm{%s} \\; (%.1f \\; \\mathrm{k})$$', As, fy, T, u.force, T_disp);
-            text(ax, 0.02, y, eq2, 'Interpreter', 'latex', 'FontSize', fs_size);
+            % Step 1
+            eq1 = sprintf('$$A_s = n \\times A_{bar} = %.0f \\times %.3f = %.3f \\; \\mathrm{%s}$$', n_bars, bar_A, As, u.area);
+            text(ax, 0.01, y, eq1, 'Interpreter', 'latex', 'FontSize', fs);
+            y = y - dy*0.6;
+            
+            eq2 = sprintf('$$T = A_s \\cdot f_y = %.3f \\times %.0f = %.0f \\; \\mathrm{%s} \\;\\; (%.1f \\; \\mathrm{kips})$$', As, fy, T, u.force, T_disp);
+            text(ax, 0.01, y, eq2, 'Interpreter', 'latex', 'FontSize', fs);
             y = y - dy;
             
-            % Step 2: a and c
+            % Step 2
             eq3 = sprintf('$$a = \\frac{A_s f_y}{0.85 f''_c b} = \\frac{%.0f}{0.85 \\times %.0f \\times %.1f} = %.4f \\; \\mathrm{%s}$$', T, fc, b, a, u.len);
-            text(ax, 0.02, y, eq3, 'Interpreter', 'latex', 'FontSize', fs_size);
-            y = y - dy*0.7;
+            text(ax, 0.01, y, eq3, 'Interpreter', 'latex', 'FontSize', fs);
+            y = y - dy*0.6;
             
-            eq4 = sprintf('$$c = \\frac{a}{\\beta_1} = \\frac{%.4f}{%.2f} = %.4f \\; \\mathrm{%s}$$', a, beta1, c, u.len);
-            text(ax, 0.02, y, eq4, 'Interpreter', 'latex', 'FontSize', fs_size);
+            eq4 = sprintf('$$c = \\frac{a}{\\beta_1} = \\frac{%.4f}{%.3f} = %.4f \\; \\mathrm{%s}$$', a, beta1, c, u.len);
+            text(ax, 0.01, y, eq4, 'Interpreter', 'latex', 'FontSize', fs);
             y = y - dy;
             
-            % Step 3: Strain check
-            eq5 = sprintf('$$\\varepsilon_y = \\frac{f_y}{E_s} = \\frac{%.0f}{%.0f} = %.5f$$', fy, Es, epsilon_y);
-            text(ax, 0.02, y, eq5, 'Interpreter', 'latex', 'FontSize', fs_size);
-            y = y - dy*0.7;
+            % Step 3
+            eq5 = sprintf('$$\\varepsilon_y = \\frac{f_y}{E_s} = \\frac{%.0f}{%.0f} = %.6f$$', fy, Es, epsilon_y);
+            text(ax, 0.01, y, eq5, 'Interpreter', 'latex', 'FontSize', fs);
             
-            eq6 = sprintf('$$\\varepsilon_s = \\left(\\frac{d - c}{c}\\right) \\varepsilon_{cu} = \\left(\\frac{%.2f - %.2f}{%.2f}\\right)(%.4f) = %.5f$$', d, c, c, epsilon_cu, epsilon_s);
-            text(ax, 0.02, y, eq6, 'Interpreter', 'latex', 'FontSize', fs_size);
+            eq6 = sprintf('$$\\varepsilon_s = \\left(\\frac{d-c}{c}\\right)\\varepsilon_{cu} = \\left(\\frac{%.2f-%.2f}{%.2f}\\right)(%.4f) = %.6f$$', d, c, c, epsilon_cu, epsilon_s);
+            text(ax, 0.45, y, eq6, 'Interpreter', 'latex', 'FontSize', fs);
             
-            % Check result
             if yield_check
-                chk_txt = '(OK: Steel Yields)';
-                chk_color = [0 0.5 0];
+                text(ax, 0.92, y, '[OK]', 'FontSize', 10, 'Color', clr.ok, 'FontWeight', 'bold', 'FontName', 'Arial');
             else
-                chk_txt = '(NOT OK: Steel Not Yielding)';
-                chk_color = [0.8 0 0];
+                text(ax, 0.92, y, '[NG]', 'FontSize', 10, 'Color', clr.ng, 'FontWeight', 'bold', 'FontName', 'Arial');
             end
-            text(ax, 0.55, y, chk_txt, 'Interpreter', 'none', 'FontSize', fs_size, 'Color', chk_color, 'FontWeight', 'bold');
             y = y - dy;
             
-            % Step 4: Mn
-            eq7 = sprintf('$$M_n = A_s f_y \\left( d - \\frac{a}{2} \\right) = %.0f \\left( %.2f - \\frac{%.4f}{2} \\right)$$', T, d, a);
-            text(ax, 0.02, y, eq7, 'Interpreter', 'latex', 'FontSize', fs_size);
-            y = y - dy*0.7;
+            % Step 4
+            eq7 = sprintf('$$M_n = A_s f_y \\left(d - \\frac{a}{2}\\right) = %.0f \\left(%.2f - \\frac{%.4f}{2}\\right) = %.0f \\; \\mathrm{%s}$$', T, d, a, Mn_k, u.moment_k);
+            text(ax, 0.01, y, eq7, 'Interpreter', 'latex', 'FontSize', fs);
+            y = y - dy*0.6;
             
-            eq8 = sprintf('M_n = %.0f %s = %.1f %s', Mn_k, u.moment_k, Mn_disp, u.moment_alt);
-            text(ax, 0.02, y, eq8, 'Interpreter', 'none', 'FontSize', 14, 'Color', 'b', 'FontWeight', 'bold');
+            result_txt = sprintf('Mn = %.1f %s', Mn_disp, u.moment_alt);
+            text(ax, 0.01, y, result_txt, 'FontSize', 13, 'Color', clr.result, 'FontWeight', 'bold', 'FontName', 'Arial');
             y = y - dy;
             
-            % Step 5: As_min
+            % Step 5
             if is_imperial
-                eq9 = sprintf('$$A_{s,min} = \\max\\left( \\frac{3\\sqrt{f''_c}}{f_y} b_w d, \\; \\frac{200}{f_y} b_w d \\right) = %.4f \\; \\mathrm{%s}$$', As_min, u.area);
+                eq9 = sprintf('$$A_{s,min} = \\max\\left(\\frac{3\\sqrt{f''_c}}{f_y}b_wd,\\;\\frac{200}{f_y}b_wd\\right) = %.4f \\; \\mathrm{%s}$$', As_min, u.area);
             else
-                eq9 = sprintf('$$A_{s,min} = \\max\\left( \\frac{0.25\\sqrt{f''_c}}{f_y} b_w d, \\; \\frac{1.4}{f_y} b_w d \\right) = %.1f \\; \\mathrm{%s}$$', As_min, u.area);
+                eq9 = sprintf('$$A_{s,min} = \\max\\left(\\frac{0.25\\sqrt{f''_c}}{f_y}b_wd,\\;\\frac{1.4}{f_y}b_wd\\right) = %.1f \\; \\mathrm{%s}$$', As_min, u.area);
             end
-            text(ax, 0.02, y, eq9, 'Interpreter', 'latex', 'FontSize', fs_size);
+            text(ax, 0.01, y, eq9, 'Interpreter', 'latex', 'FontSize', fs);
             
             if As_check
-                chk2_txt = '(OK)';
-                chk2_color = [0 0.5 0];
+                text(ax, 0.75, y, sprintf('As >= As,min [OK]'), 'FontSize', 10, 'Color', clr.ok, 'FontWeight', 'bold', 'FontName', 'Arial');
             else
-                chk2_txt = '(NOT OK)';
-                chk2_color = [0.8 0 0];
+                text(ax, 0.75, y, sprintf('As < As,min [NG]'), 'FontSize', 10, 'Color', clr.ng, 'FontWeight', 'bold', 'FontName', 'Arial');
             end
-            text(ax, 0.7, y, chk2_txt, 'Interpreter', 'none', 'FontSize', fs_size, 'Color', chk2_color, 'FontWeight', 'bold');
             
-            % === 4. UPDATE RESULTS LABEL ===
-            app.ResultLabel.Text = sprintf([...
+            % === 7. RESULTS TEXT ===
+            if yield_check
+                yield_str = 'Yes (Steel Yields)';
+            else
+                yield_str = 'No (Steel Elastic)';
+            end
+            
+            if As_check
+                asmin_str = 'OK';
+            else
+                asmin_str = 'NOT OK';
+            end
+            
+            results_str = sprintf([...
                 'RESULTS SUMMARY\n' ...
-                '─────────────────\n' ...
-                'As = %.2f %s\n' ...
-                'T = C = %.1f kips\n' ...
-                'a = %.4f %s\n' ...
-                'c = %.4f %s\n' ...
-                'εy = %.5f\n' ...
-                'εs = %.5f\n' ...
-                '─────────────────\n' ...
-                'Mn = %.1f %s\n' ...
-                'As,min = %.4f %s\n'], ...
-                As, u.area, T_disp, a, u.len, c, u.len, epsilon_y, epsilon_s, Mn_disp, u.moment_alt, As_min, u.area);
+                '================\n\n' ...
+                'Steel Area:\n' ...
+                '  As = %.4f %s\n\n' ...
+                'Forces:\n' ...
+                '  T = C = %.2f kips\n\n' ...
+                'Geometry:\n' ...
+                '  a = %.4f %s\n' ...
+                '  c = %.4f %s\n\n' ...
+                'Strain Check:\n' ...
+                '  ey = %.6f\n' ...
+                '  es = %.6f\n' ...
+                '  Yield: %s\n\n' ...
+                'NOMINAL MOMENT:\n' ...
+                '  Mn = %.1f %s\n\n' ...
+                'Min Steel Check:\n' ...
+                '  As,min = %.4f %s\n' ...
+                '  Status: %s'], ...
+                As, u.area, T_disp, a, u.len, c, u.len, ...
+                epsilon_y, epsilon_s, yield_str, ...
+                Mn_disp, u.moment_alt, As_min, u.area, asmin_str);
+            
+            app.ResultsText.Value = results_str;
         end
         
         function switchUnits(app, ~)
             if strcmp(app.UnitSwitch.Value, 'Imperial')
-                % Example 4-1 defaults
                 app.EditFc.Value = 4000;
                 app.EditFy.Value = 60000;
                 app.EditEs.Value = 29000000;
@@ -355,7 +377,6 @@ classdef BeamAnalysisApp < matlab.apps.AppBase
                 app.EditBars.Value = 4;
                 app.EditBarArea.Value = 0.79;
             else
-                % Example 4-1M defaults
                 app.EditFc.Value = 20;
                 app.EditFy.Value = 420;
                 app.EditEs.Value = 200000;
@@ -374,6 +395,7 @@ classdef BeamAnalysisApp < matlab.apps.AppBase
     methods (Access = public)
         function app = BeamAnalysisApp()
             createComponents(app);
+            initializeColors(app);
             updateApp(app);
             registerApp(app, app.UIFigure);
             if nargout == 0
@@ -387,147 +409,230 @@ classdef BeamAnalysisApp < matlab.apps.AppBase
     end
     
     methods (Access = private)
+        
+        function initializeColors(app)
+            % Professional color scheme
+            app.Colors = struct(...
+                'concrete', [0.88 0.88 0.86], ...
+                'outline', [0.3 0.3 0.3], ...
+                'compression', [0.85 0.55 0.55], ...
+                'compression_line', [0.7 0.2 0.2], ...
+                'tension', [0.2 0.4 0.7], ...
+                'steel', [0.25 0.25 0.3], ...
+                'neutral', [0.4 0.4 0.4], ...
+                'dimension', [0.2 0.5 0.7], ...
+                'strain', [0.7 0.85 0.95], ...
+                'strain_edge', [0.2 0.4 0.6], ...
+                'moment_arm', [0.2 0.6 0.3], ...
+                'result', [0.1 0.3 0.6], ...
+                'ok', [0.1 0.5 0.2], ...
+                'ng', [0.7 0.15 0.15], ...
+                'bg', [0.97 0.97 0.97], ...
+                'panel_bg', [1 1 1]);
+        end
+        
         function createComponents(app)
             % === MAIN FIGURE ===
             app.UIFigure = uifigure('Visible', 'off');
-            app.UIFigure.Position = [50 50 1300 750];
-            app.UIFigure.Name = 'Beam Analysis - Example 4-1';
-            app.UIFigure.Color = [0.98 0.98 0.98];
+            app.UIFigure.Position = [80 60 1400 800];
+            app.UIFigure.Name = 'Beam Analysis - Nominal Moment Strength (ACI 318)';
+            app.UIFigure.Color = [0.94 0.94 0.94];
+            app.UIFigure.Resize = 'on';
 
             % === MAIN GRID ===
-            app.GridLayout = uigridlayout(app.UIFigure);
-            app.GridLayout.ColumnWidth = {'0.22x', '0.78x'};
-            app.GridLayout.RowHeight = {'1x'};
-            app.GridLayout.Padding = [5 5 5 5];
+            app.MainGrid = uigridlayout(app.UIFigure);
+            app.MainGrid.ColumnWidth = {'0.18x', '0.82x'};
+            app.MainGrid.RowHeight = {'1x'};
+            app.MainGrid.Padding = [8 8 8 8];
+            app.MainGrid.ColumnSpacing = 8;
 
-            % === LEFT PANEL (Inputs) ===
-            app.LeftPanel = uipanel(app.GridLayout);
-            app.LeftPanel.Layout.Row = 1;
-            app.LeftPanel.Layout.Column = 1;
-            app.LeftPanel.Title = 'INPUT PARAMETERS';
-            app.LeftPanel.FontWeight = 'bold';
-            app.LeftPanel.Scrollable = 'on';
+            % === LEFT: INPUT PANEL ===
+            app.InputPanel = uipanel(app.MainGrid);
+            app.InputPanel.Layout.Row = 1;
+            app.InputPanel.Layout.Column = 1;
+            app.InputPanel.Title = 'INPUT PARAMETERS';
+            app.InputPanel.FontWeight = 'bold';
+            app.InputPanel.FontSize = 11;
+            app.InputPanel.BackgroundColor = [1 1 1];
 
-            inpGrid = uigridlayout(app.LeftPanel);
-            inpGrid.ColumnWidth = {'1.2x', '1x'};
-            inpGrid.RowHeight = repmat({'fit'}, 1, 14);
-            inpGrid.RowSpacing = 5;
+            inpGrid = uigridlayout(app.InputPanel);
+            inpGrid.ColumnWidth = {'1.3x', '1x'};
+            inpGrid.RowHeight = repmat({'fit'}, 1, 16);
+            inpGrid.RowSpacing = 4;
+            inpGrid.Padding = [8 8 8 8];
             
-            % --- Row 1: Units ---
+            % Unit Switch
             lbl = uilabel(inpGrid); lbl.Text = 'Unit System'; lbl.FontWeight = 'bold';
             app.UnitSwitch = uiswitch(inpGrid, 'slider');
             app.UnitSwitch.Items = {'Imperial', 'SI'};
             app.UnitSwitch.ValueChangedFcn = createCallbackFcn(app, @switchUnits, true);
             
-            % --- Separator ---
-            lbl = uilabel(inpGrid); lbl.Text = '── Materials ──'; lbl.FontAngle = 'italic';
+            % Separator - Materials
+            lbl = uilabel(inpGrid); lbl.Text = 'MATERIALS'; lbl.FontWeight = 'bold'; lbl.FontColor = [0.3 0.3 0.5];
             uilabel(inpGrid);
             
-            % --- fc ---
+            % fc
             lbl = uilabel(inpGrid); lbl.Text = 'fc'' (Concrete)';
             app.EditFc = uieditfield(inpGrid, 'numeric');
             app.EditFc.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
             
-            % --- fy ---
+            % fy
             lbl = uilabel(inpGrid); lbl.Text = 'fy (Steel Yield)';
             app.EditFy = uieditfield(inpGrid, 'numeric');
             app.EditFy.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
             
-            % --- Es ---
-            lbl = uilabel(inpGrid); lbl.Text = 'Es (Steel Modulus)';
+            % Es
+            lbl = uilabel(inpGrid); lbl.Text = 'Es (Modulus)';
             app.EditEs = uieditfield(inpGrid, 'numeric');
             app.EditEs.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
             
-            % --- beta1 ---
-            lbl = uilabel(inpGrid); lbl.Text = 'β₁ (Stress Block)';
+            % beta1
+            lbl = uilabel(inpGrid); lbl.Text = 'Beta1';
             app.EditBeta1 = uieditfield(inpGrid, 'numeric');
             app.EditBeta1.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
             
-            % --- epsilon_cu ---
-            lbl = uilabel(inpGrid); lbl.Text = 'εcu (Ult. Strain)';
+            % epsilon_cu
+            lbl = uilabel(inpGrid); lbl.Text = 'ecu (Ult. Strain)';
             app.EditEpsCu = uieditfield(inpGrid, 'numeric');
             app.EditEpsCu.ValueDisplayFormat = '%.4f';
             app.EditEpsCu.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
             
-            % --- Separator ---
-            lbl = uilabel(inpGrid); lbl.Text = '── Geometry ──'; lbl.FontAngle = 'italic';
+            % Separator - Geometry
+            lbl = uilabel(inpGrid); lbl.Text = 'GEOMETRY'; lbl.FontWeight = 'bold'; lbl.FontColor = [0.3 0.3 0.5];
             uilabel(inpGrid);
             
-            % --- b ---
+            % b
             lbl = uilabel(inpGrid); lbl.Text = 'b (Width)';
             app.EditB = uieditfield(inpGrid, 'numeric');
             app.EditB.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
             
-            % --- h ---
+            % h
             lbl = uilabel(inpGrid); lbl.Text = 'h (Total Depth)';
             app.EditH = uieditfield(inpGrid, 'numeric');
             app.EditH.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
             
-            % --- d ---
+            % d
             lbl = uilabel(inpGrid); lbl.Text = 'd (Eff. Depth)';
             app.EditD = uieditfield(inpGrid, 'numeric');
             app.EditD.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
             
-            % --- Separator ---
-            lbl = uilabel(inpGrid); lbl.Text = '── Reinforcement ──'; lbl.FontAngle = 'italic';
+            % Separator - Reinforcement
+            lbl = uilabel(inpGrid); lbl.Text = 'REINFORCEMENT'; lbl.FontWeight = 'bold'; lbl.FontColor = [0.3 0.3 0.5];
             uilabel(inpGrid);
             
-            % --- Bars ---
+            % Bars
             lbl = uilabel(inpGrid); lbl.Text = 'Number of Bars';
             app.EditBars = uieditfield(inpGrid, 'numeric');
             app.EditBars.ValueDisplayFormat = '%.0f';
             app.EditBars.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
             
-            % --- Bar Area ---
+            % Bar Area
             lbl = uilabel(inpGrid); lbl.Text = 'Bar Area (each)';
             app.EditBarArea = uieditfield(inpGrid, 'numeric');
             app.EditBarArea.ValueChangedFcn = createCallbackFcn(app, @updateApp, true);
 
-            % === RIGHT PANEL (Visualization) ===
-            app.RightPanel = uipanel(app.GridLayout);
-            app.RightPanel.Layout.Row = 1;
-            app.RightPanel.Layout.Column = 2;
-            app.RightPanel.Title = 'VISUALIZATION & EQUATIONS';
-            app.RightPanel.FontWeight = 'bold';
+            % === RIGHT PANEL ===
+            rightGrid = uigridlayout(app.MainGrid);
+            rightGrid.Layout.Row = 1;
+            rightGrid.Layout.Column = 2;
+            rightGrid.ColumnWidth = {'1x', '1x', '1x', '0.6x'};
+            rightGrid.RowHeight = {'1.2x', '1.5x'};
+            rightGrid.Padding = [0 0 0 0];
+            rightGrid.ColumnSpacing = 6;
+            rightGrid.RowSpacing = 6;
+
+            % --- Diagram Panels ---
+            % Section
+            sectionPanel = uipanel(rightGrid);
+            sectionPanel.Layout.Row = 1;
+            sectionPanel.Layout.Column = 1;
+            sectionPanel.BackgroundColor = [1 1 1];
+            sectionPanel.BorderType = 'line';
             
-            rGrid = uigridlayout(app.RightPanel);
-            rGrid.ColumnWidth = {'1x', '1x', '1x', '0.8x'};
-            rGrid.RowHeight = {'1.5x', '2x'};
-            rGrid.Padding = [5 5 5 5];
+            secGrid = uigridlayout(sectionPanel);
+            secGrid.ColumnWidth = {'1x'};
+            secGrid.RowHeight = {'1x'};
+            secGrid.Padding = [2 2 2 2];
             
-            % --- Row 1: Diagrams ---
-            app.AxSection = uiaxes(rGrid);
+            app.AxSection = uiaxes(secGrid);
             app.AxSection.Layout.Row = 1;
             app.AxSection.Layout.Column = 1;
             
-            app.AxStrain = uiaxes(rGrid);
+            % Strain
+            strainPanel = uipanel(rightGrid);
+            strainPanel.Layout.Row = 1;
+            strainPanel.Layout.Column = 2;
+            strainPanel.BackgroundColor = [1 1 1];
+            strainPanel.BorderType = 'line';
+            
+            strGrid = uigridlayout(strainPanel);
+            strGrid.ColumnWidth = {'1x'};
+            strGrid.RowHeight = {'1x'};
+            strGrid.Padding = [2 2 2 2];
+            
+            app.AxStrain = uiaxes(strGrid);
             app.AxStrain.Layout.Row = 1;
-            app.AxStrain.Layout.Column = 2;
+            app.AxStrain.Layout.Column = 1;
             
-            app.AxStress = uiaxes(rGrid);
+            % Stress
+            stressPanel = uipanel(rightGrid);
+            stressPanel.Layout.Row = 1;
+            stressPanel.Layout.Column = 3;
+            stressPanel.BackgroundColor = [1 1 1];
+            stressPanel.BorderType = 'line';
+            
+            stressGrid = uigridlayout(stressPanel);
+            stressGrid.ColumnWidth = {'1x'};
+            stressGrid.RowHeight = {'1x'};
+            stressGrid.Padding = [2 2 2 2];
+            
+            app.AxStress = uiaxes(stressGrid);
             app.AxStress.Layout.Row = 1;
-            app.AxStress.Layout.Column = 3;
+            app.AxStress.Layout.Column = 1;
             
-            % Results Summary
-            app.ResultLabel = uilabel(rGrid);
-            app.ResultLabel.Layout.Row = 1;
-            app.ResultLabel.Layout.Column = 4;
-            app.ResultLabel.VerticalAlignment = 'top';
-            app.ResultLabel.Text = 'Results...';
-            app.ResultLabel.FontName = 'Consolas';
-            app.ResultLabel.FontSize = 11;
-            app.ResultLabel.BackgroundColor = [1 1 0.9];
+            % Results
+            app.ResultsPanel = uipanel(rightGrid);
+            app.ResultsPanel.Layout.Row = 1;
+            app.ResultsPanel.Layout.Column = 4;
+            app.ResultsPanel.Title = 'Results';
+            app.ResultsPanel.FontWeight = 'bold';
+            app.ResultsPanel.BackgroundColor = [0.98 0.98 0.95];
             
-            % --- Row 2: Equations ---
-            app.AxEquations = uiaxes(rGrid);
-            app.AxEquations.Layout.Row = 2;
-            app.AxEquations.Layout.Column = [1 4];
+            resGrid = uigridlayout(app.ResultsPanel);
+            resGrid.ColumnWidth = {'1x'};
+            resGrid.RowHeight = {'1x'};
+            resGrid.Padding = [4 4 4 4];
+            
+            app.ResultsText = uitextarea(resGrid);
+            app.ResultsText.Layout.Row = 1;
+            app.ResultsText.Layout.Column = 1;
+            app.ResultsText.FontName = 'Consolas';
+            app.ResultsText.FontSize = 9;
+            app.ResultsText.Editable = 'off';
+            app.ResultsText.BackgroundColor = [0.98 0.98 0.95];
+            
+            % --- Equations Panel ---
+            app.EquationsPanel = uipanel(rightGrid);
+            app.EquationsPanel.Layout.Row = 2;
+            app.EquationsPanel.Layout.Column = [1 4];
+            app.EquationsPanel.Title = 'Calculation Procedure (ACI 318)';
+            app.EquationsPanel.FontWeight = 'bold';
+            app.EquationsPanel.BackgroundColor = [1 1 1];
+            
+            eqGrid = uigridlayout(app.EquationsPanel);
+            eqGrid.ColumnWidth = {'1x'};
+            eqGrid.RowHeight = {'1x'};
+            eqGrid.Padding = [4 4 4 4];
+            
+            app.AxEquations = uiaxes(eqGrid);
+            app.AxEquations.Layout.Row = 1;
+            app.AxEquations.Layout.Column = 1;
             app.AxEquations.XTick = [];
             app.AxEquations.YTick = [];
-            app.AxEquations.Box = 'on';
-            app.AxEquations.Color = [1 1 1];
+            app.AxEquations.XColor = 'none';
+            app.AxEquations.YColor = 'none';
 
-            % === SET INITIAL VALUES (Imperial) ===
+            % === SET INITIAL VALUES ===
             app.EditFc.Value = 4000;
             app.EditFy.Value = 60000;
             app.EditEs.Value = 29000000;
