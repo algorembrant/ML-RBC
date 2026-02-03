@@ -1,4 +1,4 @@
-# ML-RBC: Beam Analysis App
+# ML-RBC: Beam Analysis Tool
 
 A MATLAB application for calculating the **Nominal Moment Strength (Mn)** of singly reinforced concrete beam sections, based on ACI 318 code provisions.
 
@@ -6,98 +6,175 @@ A MATLAB application for calculating the **Nominal Moment Strength (Mn)** of sin
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ---
-
-<img width="1361" height="677" alt="BeamAnalysisApp Screenshot" src="https://github.com/user-attachments/assets/8645b468-b3a2-423a-bf1d-a03852dca0e9" />
-
----
+<img width="1361" height="677" alt="image" src="https://github.com/user-attachments/assets/8645b468-b3a2-423a-bf1d-a03852dca0e9" />
 
 ## Features
 
-- **Interactive GUI** - Real-time visualization as you adjust parameters
-- **Dual Unit Support** - Switch between Imperial (psi, in) and SI (MPa, mm)
-- **Visual Diagrams** - Cross-section, strain profile, and stress block
-- **Step-by-Step Equations** - Calculations displayed with LaTeX notation
-- **Results Summary** - Key values displayed in a dedicated panel
-
----
-
-## How to Run (Step-by-Step)
-
-### Requirements
-- MATLAB R2020a or later
-
-### Method 1: Run from MATLAB Command Window
-1. Open MATLAB
-2. Navigate to the project folder:
-   ```matlab
-   cd 'C:\path\to\ML-RBC'
-   ```
-3. Type and press Enter:
-   ```matlab
-   BeamAnalysisApp
-   ```
-
-### Method 2: Run from MATLAB Editor
-1. Open MATLAB
-2. In the **Current Folder** panel, navigate to the ML-RBC folder
-3. Double-click on `BeamAnalysisApp.m` to open it in the Editor
-4. Click the green **Run** button in the Editor toolbar (or press F5)
-
----
-
-## Using the App
-
-### Step 1: Select Unit System
-- Use the toggle switch at the top of the input panel
-- **Imperial**: psi, inches (Example 4-1)
-- **SI**: MPa, mm (Example 4-1M)
-
-### Step 2: Enter Input Values
-
-| Category | Parameter | Description |
-|----------|-----------|-------------|
-| **Materials** | fc' | Concrete compressive strength |
-| | fy | Steel yield strength |
-| | Es | Steel modulus of elasticity |
-| | Beta1 | Stress block factor |
-| | ecu | Ultimate concrete strain |
-| **Geometry** | b | Beam width |
-| | h | Total beam depth |
-| | d | Effective depth to steel |
-| **Reinforcement** | Number of Bars | Count of tension bars |
-| | Bar Area | Area per bar |
-
-### Step 3: View Results
-The app automatically updates when you change any value:
-- **Left diagrams**: Cross section, strain profile, stress block
-- **Bottom panel**: Step-by-step equations with your values
-- **Results box**: Summary of calculated values
+- **Interactive GUI**: Real-time visualization as you adjust parameters
+- **Dual Unit Support**: Switch between Imperial (psi, in) and SI (MPa, mm) units
+- **Complete Variable Control**: Adjust all material and geometric properties
+- **LaTeX Equations**: Step-by-step calculations displayed with mathematical notation
+- **Visual Diagrams**: Cross-section, strain profile, and stress block illustrations
 
 ---
 
 ## Reference Examples
 
-Based on **Example 4-1** and **Example 4-1M** from ACI 318:
+This application is based on **Example 4-1** (Imperial) and **Example 4-1M** (SI) from ACI 318 provisions:
+
+### Example 4-1: Imperial Units (psi, in)
 
 <details>
-<summary>Click to view Example 4-1 (Imperial)</summary>
+<summary>Click to expand Example 4-1 images</summary>
+
 
 ![Example 4-1 Part 1](Example4-1/example4-1_part1.png)
+
+
 ![Example 4-1 Part 2](Example4-1/example4-1_part2.png)
+
 ![Example 4-1 Part 3](Example4-1/example4-1_part3.png)
+
 ![Example 4-1 Part 4](Example4-1/example4-1_part4.png)
+
 ![Example 4-1 Part 5](Example4-1/example4-1_part5.png)
 
 </details>
 
+### Example 4-1M: SI Units (MPa, mm)
+
 <details>
-<summary>Click to view Example 4-1M (SI)</summary>
+<summary>Click to expand Example 4-1M images</summary>
 
 ![Example 4-1 Part 6](Example4-1/example4-1_part6.png)
+
 ![Example 4-1 Part 7](Example4-1/example4-1_part7.png)
+
 ![Example 4-1 Part 8](Example4-1/example4-1_part8.png)
 
 </details>
+
+---
+
+## Quick Start
+
+### Requirements
+- MATLAB R2020a or later (with App Designer support)
+
+### Running the App
+1. Clone or download this repository
+2. Open MATLAB and navigate to the project folder
+3. Run the app:
+   ```matlab
+   BeamAnalysisApp
+   ```
+
+---
+
+## User Guide
+
+### App Layout
+
+| Panel | Description |
+|-------|-------------|
+| **Left Panel** | Input parameters (materials, geometry, reinforcement) |
+| **Right Panel** | Visualizations (diagrams) and equation display |
+
+### Input Parameters
+
+#### Materials
+| Parameter | Description | Imperial Default | SI Default |
+|-----------|-------------|------------------|------------|
+| fc' | Concrete compressive strength | 4000 psi | 20 MPa |
+| fy | Steel yield strength | 60,000 psi | 420 MPa |
+| Es | Modulus of elasticity of steel | 29×10⁶ psi | 200,000 MPa |
+| β₁ | Stress block factor | 0.85 | 0.85 |
+| εcu | Ultimate concrete strain | 0.003 | 0.003 |
+
+#### Geometry
+| Parameter | Description | Imperial Default | SI Default |
+|-----------|-------------|------------------|------------|
+| b | Beam width | 12 in | 250 mm |
+| h | Total beam depth | 20 in | 565 mm |
+| d | Effective depth | 17.5 in | 500 mm |
+
+#### Reinforcement
+| Parameter | Description | Imperial Default | SI Default |
+|-----------|-------------|------------------|------------|
+| Number of Bars | Count of tension bars | 4 | 3 |
+| Bar Area | Area per bar | 0.79 in² | 510 mm² |
+
+### How to Use
+
+1. **Select Unit System**: Toggle the switch at the top between "Imperial" and "SI"
+2. **Enter Values**: Modify any input field - the app updates automatically
+3. **View Results**: 
+   - **Diagrams**: See the beam section, strain distribution, and stress block
+   - **Equations**: Follow the step-by-step calculations at the bottom
+   - **Summary**: Check the results box for key values
+
+### Calculation Steps (Based on Example 4-1)
+
+The app follows the ACI 318 procedure:
+
+1. **Calculate Total Steel Area**
+   ```
+   As = n × Abar
+   ```
+
+2. **Calculate Tension Force**
+   ```
+   T = As × fy
+   ```
+
+3. **Calculate Stress Block Depth**
+   ```
+   a = (As × fy) / (0.85 × fc' × b)
+   ```
+
+4. **Calculate Neutral Axis Depth**
+   ```
+   c = a / β₁
+   ```
+
+5. **Verify Steel Yielding** (Strain Compatibility)
+   ```
+   εy = fy / Es
+   εs = ((d - c) / c) × εcu
+   Check: εs ≥ εy
+   ```
+
+6. **Calculate Nominal Moment**
+   ```
+   Mn = As × fy × (d - a/2)
+   ```
+
+7. **Check Minimum Steel Area**
+   ```
+   As,min = max(3√fc'/fy × bw × d, 200/fy × bw × d)  [Imperial]
+   As,min = max(0.25√fc'/fy × bw × d, 1.4/fy × bw × d)  [SI]
+   ```
+
+---
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `BeamAnalysisApp.m` | Main interactive MATLAB App |
+| `Example4-1/` | Reference images from textbook |
+
+---
+
+## Example Output
+
+When running with default Imperial values (Example 4-1):
+- **As** = 3.16 in²
+- **T** = 190 kips
+- **a** = 4.65 in
+- **c** = 5.47 in
+- **εs** = 0.00658 (> εy = 0.00207 ✓)
+- **Mn** = 240 k-ft
 
 ---
 
@@ -105,21 +182,31 @@ Based on **Example 4-1** and **Example 4-1M** from ACI 318:
 
 | Issue | Solution |
 |-------|----------|
-| App doesn't open | Ensure MATLAB R2020a+ is installed |
+| App doesn't open | Ensure MATLAB R2020a+ with App Designer |
 | Blank plots | Check that all input values are positive |
-| Run button grayed out | Make sure you're in the correct folder |
+| LaTeX warnings (older MATLAB) | Some LaTeX features require R2021a+ |
 
 ---
 
 ## Theory Reference
 
+This application implements the analysis procedure for singly reinforced rectangular beam sections as described in:
+
 - **ACI 318-19**: Building Code Requirements for Structural Concrete
-- **Section 4-4**: Analysis of Nominal Moment Strength
-- **Equations**: 4-11, 4-14a, 4-16, 4-18, 4-21
+- **Section 4-4**: Analysis of Nominal Moment Strength for Singly Reinforced Beam Sections
+- **Equations Referenced**: Eq. 4-11, 4-14a, 4-16, 4-18, 4-21
+
+---
+
+## License
+
+MIT License - See LICENSE file for details.
 
 ---
 
 ## Citation
+
+If you use this tool in your research or coursework, please cite:
 
 ```bibtex
 @software{ML-RBC,
